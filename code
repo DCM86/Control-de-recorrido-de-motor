@@ -1,0 +1,212 @@
+
+//Control de recorrido lineal mediante dos encoder en paralelo
+//se usan milímetros pero se puede usar cualquier medida de distancia
+// 1 000 000 microsegundo /micros()/ = 1000 milisegundos /millis()/ = 1 segundo
+//recordar colocar resorte tensor en la parte debil del recorrido
+//Los nombres terminan en XX para faciliar el duplicado y cambio de nombre
+
+//Variables hardware XX
+int rEncoderXX = 10; //milimetros de recorrido por pulso de encoder.¿automático?
+int tiempoFiltroXX = 500;//microsegundos que permanece sin contar pulsos
+int recorridoXX = 400; //mm de recorrido total¿automático?
+int lentoXX = 10; //mm parte final del recorrido que se hace a baja velocidad
+int inerciaXX = 5; //mm desconección motores en finales
+int miniVelXX = 5; //velocidad maxima inercia en mm por segundo
+int maxPulXX = 50000; //microsegundos maximos entre pulsos se considera detenido ¿?¿?
+
+//conexiones medición XX
+const int iniXX; //inicio carrera conectado a masa
+const int finXX; //final carrera conectado a masa
+const int cuentaXX = 3; //encoder interrupción
+const int direXX = 4; //encoder sentido giro
+
+//conexiones control XX
+const int corrienteXX = 13; //relé activación motor
+const int velocidadXX = 12; //relé regulador de corriente
+const int polaridadXX = 11; //relé sentido de giro
+
+//Variables funcionamiento / interrupciones XX
+volatile int relaXX = 0;//contador interrupciones
+volatile long pulsiXX = 0; //mcrosegundos entre pulsos
+long anteriorXX = 0; //milisegundo en el que se contó el pulso anterior
+long muestreoXX = 0;  //guarda micros() para mejorar la precición
+long saltoXX = 0;  //guarda cálculo de tiempo entre pulsos para reducir operaciones
+int giroXX; //sentido de giro
+
+//Variables funcionamiento / cálculos motor XX
+int arranqueXX = 0; //testigo de arranque del motor
+int relativoXX = 0; //posición relativa actual
+int tiemPulsoXX = 0; // tiempo entre pulsos actual
+long mmsXX = 0;//velocidad actual en milimetros por segundo
+
+int inoXX = 0; //testigo inicio carrera
+int finoXX = 0; //testigo final de carrera
+
+int objetivoXX = 0; //posición hasta la que se quiere ir
+int desviadoXX = 0; //cantidad de pulsos que quedan por recorrer
+
+void cuentaPulsosXX(){//contador interrupciones
+    muestreoXX = micros();
+    saltoXX = muestreoXX - anteriorXX; 
+    if (saltoXX > tiempoFiltroXX){//evita rebotes  
+   pulsiXX = saltoXX;
+          giroXX = digitalRead(direXX); 
+                  if(giroXX == 1){//si va adelante, según el orden de conexiones de los encoder
+                       relaXX++;
+                  }
+                  else {
+                       relaXX--;
+                  }
+         anteriorXX = muestreoXX;
+   }
+}
+
+
+void punto0XX() {
+
+}
+
+void calibradoXX() {
+
+//Velocidad lenta
+//arriba hasta que toque el botón o pase demasiado tiempo sin conar pasos
+//bajar contando pasos
+
+}
+
+void setup() {
+    //pines medición XX
+    pinMode(iniXX, INPUT_PULLUP);//inicio carrera
+    pinMode(finXX, INPUT_PULLUP);//final carrera
+    pinMode(cuentaXX, INPUT);//encoder interrupción
+    pinMode(direXX, INPUT);//encoder dirección
+    attachInterrupt(digitalPinToInterrupt(cuentaXX), cuentaPulsosXX, LOW);
+
+    //pines control XX
+    pinMode(corrienteXX, OUTPUT);
+    digitalWrite(corrienteXX, HIGH);  //se activa en low
+    pinMode(velocidadXX, OUTPUT); 
+    digitalWrite(velocidadXX, HIGH);   //se activa en low
+    pinMode(polaridadXX, OUTPUT); 
+    digitalWrite (polaridadXX, HIGH);  //se activa en low
+
+    //puerto serial a 9600 bps
+      Serial.begin(9600);
+}
+
+void loop() {//Se repite
+ relativoXX = relaXX;
+Serial.println(relativoXX);
+delay(1000);
+   //imprrimir pulsos
+
+
+   //definir objetivo mediante comunicaión
+   // medicionesXX();
+
+}
+
+  
+void medicionesXX(){
+  relativoXX = relaXX;
+   if (relativoXX != objetivoXX){//si está desviado
+        inoXX = digitalRead(iniXX);
+        finoXX = digitalRead(finXX);
+ ////// Finales
+            if (inoXX == 0){ alarmita(); Serial.println("falso inicio recorrido XX");}
+            if (finoXX == 0){alarmita();Serial.println("falso final recorrido XX");}
+ ////// Recorrido
+            if (relativoXX > recorridoXX){ alarmita();Serial.println("sobrepasado el recorrido XX");}
+            if (relativoXX < 0){alarmita();Serial.println("sobrepasado inicio XX");}
+ ///////Dirección
+            if (relativoXX > objetivoXX){
+                  digitalWrite (polaridadXX, HIGH);//relé giro
+                  desviadoXX = relativoXX - objetivoXX;
+            }
+            if (relativoXX < objetivoXX){
+                  desviadoXX = objetivoXX - relativoXX;
+                  digitalWrite (polaridadXX, LOW);//relé giro
+            }
+ ///////Potencia
+             if (desviadoXX > lentoXX){ 
+                     digitalWrite(velocidadXX, LOW);   //se activa en low
+             } 
+             else { 
+                     digitalWrite(velocidadXX, HIGH);   //se activa en low
+             } 
+///////Seguridad
+             if (arranqueXX == 0){ //comprobar si el motor está parado 
+                      arranqueXX = 1;    
+                      digitalWrite(corrienteXX, LOW);  //se activa en low 
+             }
+              else { //si el motor ya está activado
+                        if ( micros() - anteriorXX > maxPulXX){ //tiempo desde último pulso para detectar bloqueo
+                             alarma(); Serial.println("bloqueo pulsos de Motor XX");
+                         }
+ //////Precisión                        
+                        else {
+                                if (desviadoXX < inerciaXX){  //si desviado es menor a inercia 
+                                    tiemPulsoXX = pulsiXX;
+                                    mmsXX =  rEncoderXX / tiemPulsoXX * 1000000;
+                                      if ( mmsXX > miniVelXX){ //si velocidad es mayor a x
+                                          digitalWrite(corrienteXX, HIGH);  //se activa en low
+                                      } 
+                                       else {//si velocidad es menor a x
+                                          digitalWrite(corrienteXX, LOW);  //se activa en low
+                                      }
+                                 }
+                         }
+                 }//si el motor ya está activado
+        
+       }//si está desviado
+  else {//si está en su sitio
+  desonecXX();//desconectar todo
+  }
+
+}
+
+void desonecXX(){//desconectar todo
+      digitalWrite(corrienteXX, HIGH);  //se activa en low
+      arranqueXX = 0;
+      digitalWrite(velocidadXX, HIGH);   //se activa en low
+      digitalWrite (polaridadXX, HIGH);  //se activa en low
+}
+
+
+void alarma() {
+  desonecXX();
+}
+
+void alarmita(){
+  //Pitido
+  Serial.print("Fallo: ");
+  Serial.println();
+}
+/*
+  digitalWrite(corriente, LOW);  
+  delay(1000);
+  
+  digitalWrite(velocidad, LOW);  
+  delay(1000);
+  
+  digitalWrite(velocidad, HIGH);  
+  delay(1000);
+
+digitalWrite(corriente, HIGH);  
+  delay(1000);
+
+    digitalWrite(polaridad, LOW);  
+  delay(1000);
+    digitalWrite(corriente, LOW);  
+  delay(1000);
+
+    digitalWrite(velocidad, LOW);  
+  delay(1000);
+  
+  digitalWrite(velocidad, HIGH);  
+  delay(1000);
+  digitalWrite(corriente, HIGH);  
+  delay(1000);v
+  digitalWrite (polaridad, HIGH);  
+  delay(1000);
+*/
